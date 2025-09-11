@@ -79,3 +79,5 @@ GoogleService-Info.plist
 # Temporary files
 *.tmp
 *.temp
+.env.dev
+.env.prod
