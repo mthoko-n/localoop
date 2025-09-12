@@ -18,11 +18,11 @@ class LocalLoopApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'LocalLoop',
+      title: 'LocaLoop',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       home: const MainNavigation(),
     );
   }

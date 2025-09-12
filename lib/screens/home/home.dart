@@ -8,7 +8,9 @@ import 'services/home_api_service.dart';
 import 'model/location.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final VoidCallback? onAuthFailure;
+
+  const HomeScreen({super.key, this.onAuthFailure});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -19,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Location> _locations = [];
   bool _isLoading = true;
   bool _isEditing = false;
+  bool _isAddingLocation = false;
   static const int maxLocations = 4;
 
   @override
@@ -31,37 +34,109 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
     try {
       final locations = await _api.getUserLocations();
-      setState(() => _locations = locations);
+      // Ensure _locations is always a list, even if empty
+      setState(() => _locations = locations ?? []);
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to load locations: $e')));
+      if (e.toString().contains('401') ||
+          e.toString().contains('Unauthorized') ||
+          e.toString().contains('auth token')) {
+        // Auth error - redirect to login
+        await _api.logout();
+        if (widget.onAuthFailure != null) widget.onAuthFailure!();
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load locations: $e')),
+      );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  void _toggleEdit() {
-    setState(() => _isEditing = !_isEditing);
-  }
+  void _toggleEdit() => setState(() => _isEditing = !_isEditing);
 
   void _removeLocation(String id) async {
     try {
       await _api.removeLocation(id);
       setState(() => _locations.removeWhere((loc) => loc.id == id));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location removed successfully')),
+      );
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to remove location: $e')));
+      if (e.toString().contains('401') ||
+          e.toString().contains('Unauthorized') ||
+          e.toString().contains('auth')) {
+        await _api.logout();
+        if (widget.onAuthFailure != null) widget.onAuthFailure!();
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to remove location: $e')),
+      );
     }
   }
 
   void _addLocation() async {
+    if (_locations.length >= maxLocations) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('You can only join up to $maxLocations locations'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     final newLocation = await Navigator.push<Location>(
       context,
       MaterialPageRoute(builder: (_) => const LocationSearchScreen()),
     );
 
     if (newLocation != null) {
-      setState(() => _locations.add(newLocation));
+      setState(() => _isAddingLocation = true);
+
+      try {
+        final savedLocation = await _api.addLocation(
+          newLocation.name,
+          newLocation.coordinates.latitude,
+          newLocation.coordinates.longitude,
+        );
+
+        setState(() => _locations.add(savedLocation));
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location added successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } catch (e) {
+        String errorMessage = 'Failed to add location';
+
+        if (e.toString().contains('401') ||
+            e.toString().contains('Unauthorized') ||
+            e.toString().contains('auth')) {
+          await _api.logout();
+          if (widget.onAuthFailure != null) widget.onAuthFailure!();
+          return;
+        } else if (e.toString().contains('MAX_LOCATIONS_REACHED')) {
+          errorMessage = 'You can only join up to $maxLocations locations';
+        } else {
+          errorMessage = 'Failed to add location: ${e.toString()}';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        setState(() => _isAddingLocation = false);
+      }
     }
   }
 
@@ -72,6 +147,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _locations.insert(newIndex, item);
     });
   }
+
+  Future<void> _refreshLocations() async => _fetchLocations();
 
   @override
   Widget build(BuildContext context) {
@@ -85,38 +162,66 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(_isEditing ? Icons.check : Icons.edit),
             onPressed: _toggleEdit,
           ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _isLoading ? null : _refreshLocations,
+          ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: ReorderableListView(
-                      onReorder: _onReorder,
-                      children: [
-                        for (final location in _locations)
-                          LocationCard(
-                            key: ValueKey(location.id),
-                            location: location,
-                            isEditing: _isEditing,
-                            onDelete: () => _removeLocation(location.id),
-                          ),
-                        if (_locations.length < maxLocations)
-                          AddLocationCard(
-                            key: const ValueKey('add_card'),
-                            onTap: _addLocation,
-                          ),
-                      ],
+          : RefreshIndicator(
+              onRefresh: _refreshLocations,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: ReorderableListView(
+                        onReorder: _onReorder,
+                        children: [
+                          for (final location in _locations)
+                            LocationCard(
+                              key: ValueKey(location.id),
+                              location: location,
+                              isEditing: _isEditing,
+                              onDelete: () => _removeLocation(location.id),
+                            ),
+                          if (_locations.length < maxLocations)
+                            AddLocationCard(
+                              key: const ValueKey('add_card'),
+                              onTap: _isAddingLocation ? null : _addLocation,
+                              isLoading: _isAddingLocation,
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${_locations.length} of $maxLocations locations',
-                    style: textTheme.bodyMedium,
-                  ),
-                ],
+                    if (_isAddingLocation)
+                      const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Adding location...'),
+                          ],
+                        ),
+                      ),
+                    Text(
+                      '${_locations.length} of $maxLocations locations',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: _locations.length >= maxLocations
+                            ? Colors.orange
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'model/location.dart';
 import 'services/home_api_service.dart';
+import 'model/search_result.dart';
 
 class LocationSearchScreen extends StatefulWidget {
   const LocationSearchScreen({super.key});

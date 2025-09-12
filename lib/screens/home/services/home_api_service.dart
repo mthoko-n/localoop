@@ -20,9 +20,17 @@ class HomeApiService {
   }
 
   // Existing methods...
-  Future<List<Location>> getUserLocations() async {
-    final uri = NetworkHelper.buildUri('/locations/user');
-    final response = await http.get(uri, headers: await _getHeaders());
+Future<List<Location>> getUserLocations() async {
+  final uri = NetworkHelper.buildUri('/locations/user');
+  print('Calling: $uri'); // Debug
+  
+  try {
+    final headers = await _getHeaders();
+    //print('Headers: $headers'); // Debug (be careful not to log this in production)
+    
+    final response = await http.get(uri, headers: headers);
+    print('Response status: ${response.statusCode}'); // Debug
+    print('Response body: ${response.body}'); // Debug
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -32,6 +40,14 @@ class HomeApiService {
     } else {
       throw Exception('Failed to fetch locations: ${response.body}');
     }
+  } catch (e) {
+    print('Error in getUserLocations: $e'); // Debug
+    rethrow;
+  }
+}
+
+   Future<void> logout() async {
+    await _storage.delete(key: 'auth_token');
   }
 
   Future<Location> addLocation(String name, double lat, double lng) async {

@@ -89,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ShaderMask(
                 shaderCallback: (bounds) => AppTheme.primaryGradient.createShader(bounds),
                 child: Text(
-                  'LocalLoop',
+                  'LocaLoop',
                   style: textTheme.headlineLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Colors.white, // This will be masked by the gradient
