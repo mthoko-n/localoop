@@ -1,4 +1,4 @@
-import 'location.dart';
+import 'place_location.dart';
 
 class SearchResult {
   final String id;

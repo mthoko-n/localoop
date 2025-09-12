@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:localoop/theme/colours.dart';
 
 class AddLocationCard extends StatelessWidget {
   final VoidCallback? onTap;

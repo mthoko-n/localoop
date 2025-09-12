@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
-import '../../theme/colours.dart';
 import 'widgets/location_card.dart';
 import 'widgets/add_location_card.dart';
 import 'location_search.dart';
 import 'services/home_api_service.dart';
-import 'model/location.dart';
+import 'model/place_location.dart';
 
 class HomeScreen extends StatefulWidget {
   final VoidCallback? onAuthFailure;
@@ -18,7 +16,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final HomeApiService _api = HomeApiService();
-  List<Location> _locations = [];
+  List<PlaceLocation> _locations = [];
   bool _isLoading = true;
   bool _isEditing = false;
   bool _isAddingLocation = false;
@@ -33,19 +31,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _fetchLocations() async {
     setState(() => _isLoading = true);
     try {
-      final locations = await _api.getUserLocations();
-      // Ensure _locations is always a list, even if empty
+      // If you have a backend that returns user locations, adapt here
+      final locations = await _api.getUserLocations(); // returns List<PlaceLocation>
       setState(() => _locations = locations ?? []);
     } catch (e) {
-      if (e.toString().contains('401') ||
-          e.toString().contains('Unauthorized') ||
-          e.toString().contains('auth token')) {
-        // Auth error - redirect to login
-        await _api.logout();
-        if (widget.onAuthFailure != null) widget.onAuthFailure!();
-        return;
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to load locations: $e')),
       );
@@ -56,23 +45,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _toggleEdit() => setState(() => _isEditing = !_isEditing);
 
-  void _removeLocation(String id) async {
+  void _removeLocation(String placeId) async {
     try {
-      await _api.removeLocation(id);
-      setState(() => _locations.removeWhere((loc) => loc.id == id));
+      await _api.removeLocation(placeId); // adapt backend if needed
+      setState(() => _locations.removeWhere((loc) => loc.placeId == placeId));
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Location removed successfully')),
       );
     } catch (e) {
-      if (e.toString().contains('401') ||
-          e.toString().contains('Unauthorized') ||
-          e.toString().contains('auth')) {
-        await _api.logout();
-        if (widget.onAuthFailure != null) widget.onAuthFailure!();
-        return;
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to remove location: $e')),
       );
@@ -90,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    final newLocation = await Navigator.push<Location>(
+    final newLocation = await Navigator.push<PlaceLocation>(
       context,
       MaterialPageRoute(builder: (_) => const LocationSearchScreen()),
     );
@@ -115,14 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       } catch (e) {
         String errorMessage = 'Failed to add location';
-
-        if (e.toString().contains('401') ||
-            e.toString().contains('Unauthorized') ||
-            e.toString().contains('auth')) {
-          await _api.logout();
-          if (widget.onAuthFailure != null) widget.onAuthFailure!();
-          return;
-        } else if (e.toString().contains('MAX_LOCATIONS_REACHED')) {
+        if (e.toString().contains('MAX_LOCATIONS_REACHED')) {
           errorMessage = 'You can only join up to $maxLocations locations';
         } else {
           errorMessage = 'Failed to add location: ${e.toString()}';
@@ -182,10 +156,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           for (final location in _locations)
                             LocationCard(
-                              key: ValueKey(location.id),
-                              location: location,
+                              key: ValueKey(location.placeId),
+                              placeLocation: location, // updated prop name
                               isEditing: _isEditing,
-                              onDelete: () => _removeLocation(location.id),
+                              onDelete: () => _removeLocation(location.placeId),
                             ),
                           if (_locations.length < maxLocations)
                             AddLocationCard(

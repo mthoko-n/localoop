@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:localoop/theme/app_theme.dart';
 import 'package:localoop/theme/colours.dart';
-import '../model/location.dart';
+import '../model/place_location.dart';
 
 class LocationCard extends StatelessWidget {
-  final Location location;
+  final PlaceLocation placeLocation;
   final bool isEditing;
   final VoidCallback onDelete;
 
   const LocationCard({
     super.key,
-    required this.location,
+    required this.placeLocation,
     this.isEditing = false,
     required this.onDelete,
   });
@@ -21,8 +20,10 @@ class LocationCard extends StatelessWidget {
       key: key,
       child: ListTile(
         leading: const Icon(Icons.location_on),
-        title: Text(location.name),
-        subtitle: Text(location.status ?? 'No new messages'),
+        title: Text(placeLocation.name),
+        subtitle: Text(placeLocation.address.isNotEmpty
+            ? placeLocation.address
+            : 'No address available'),
         trailing: isEditing
             ? IconButton(
                 icon: const Icon(Icons.delete, color: AppColors.error),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'model/location.dart';
+import 'model/place_location.dart';
 import 'services/home_api_service.dart';
-import 'model/search_result.dart';
 
 class LocationSearchScreen extends StatefulWidget {
   const LocationSearchScreen({super.key});
@@ -12,11 +11,12 @@ class LocationSearchScreen extends StatefulWidget {
 
 class _LocationSearchScreenState extends State<LocationSearchScreen> {
   final _searchController = TextEditingController();
-  List<Location> _results = [];
+  List<PlaceLocation> _results = [];
   bool _isLoading = false;
 
   void _search(String query) async {
     if (query.isEmpty) return;
+
     setState(() => _isLoading = true);
 
     try {
@@ -30,8 +30,8 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
     }
   }
 
-  void _selectLocation(Location loc) {
-    Navigator.pop(context, loc); // return selected location to home.dart
+  void _selectLocation(PlaceLocation loc) {
+    Navigator.pop(context, loc);
   }
 
   @override
@@ -58,7 +58,7 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
                 final loc = _results[index];
                 return ListTile(
                   title: Text(loc.name),
-                  subtitle: Text('ID: ${loc.id}'),
+                  subtitle: Text(loc.address),
                   onTap: () => _selectLocation(loc),
                 );
               },

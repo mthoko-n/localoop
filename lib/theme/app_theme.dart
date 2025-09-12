@@ -247,7 +247,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         systemOverlayStyle: SystemUiOverlayStyle.light,
         titleTextStyle: GoogleFonts.inter(
-          textStyle: AppTextStyles.appBarTitleDark?.copyWith(
+          textStyle: AppTextStyles.appBarTitleDark.copyWith(
             color: AppColors.pureWhite,
           ),
         ),
@@ -373,12 +373,12 @@ class AppTheme {
           borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
         labelStyle: GoogleFonts.inter(
-          textStyle: AppTextStyles.inputLabelDark?.copyWith(
+          textStyle: AppTextStyles.inputLabelDark.copyWith(
             color: AppColors.gray300,
           ),
         ),
         hintStyle: GoogleFonts.inter(
-          textStyle: AppTextStyles.inputHintDark?.copyWith(
+          textStyle: AppTextStyles.inputHintDark.copyWith(
             color: AppColors.gray500,
           ),
         ),
