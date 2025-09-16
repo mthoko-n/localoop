@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'model/place_location.dart';
 import 'services/home_api_service.dart';
+import 'package:localoop/services/api_client.dart';
 
 class LocationSearchScreen extends StatefulWidget {
-  const LocationSearchScreen({super.key});
+  final HomeApiService api; // <- inject HomeApiService
+
+  const LocationSearchScreen({super.key, required this.api});
 
   @override
   State<LocationSearchScreen> createState() => _LocationSearchScreenState();
@@ -20,7 +23,7 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final results = await HomeApiService().searchLocations(query);
+      final results = await widget.api.searchLocations(query);
       setState(() => _results = results);
     } catch (e) {
       ScaffoldMessenger.of(context)

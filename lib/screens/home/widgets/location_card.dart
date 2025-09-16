@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import '../model/place_location.dart';
 import '../../chat/conversations_screen.dart';
+import 'package:localoop/services/api_client.dart'; 
 
 class LocationCard extends StatelessWidget {
   final PlaceLocation placeLocation;
   final bool isEditing;
   final VoidCallback? onDelete;
+  final ApiClient apiClient; 
 
   const LocationCard({
     super.key,
     required this.placeLocation,
     required this.isEditing,
     this.onDelete,
+    required this.apiClient,
   });
 
   @override
@@ -58,33 +61,11 @@ class LocationCard extends StatelessWidget {
                     
                     const SizedBox(height: 4),
                     
-                    // You can add more info here like address or distance
                     Text(
                       '${placeLocation.coordinates.latitude.toStringAsFixed(4)}, ${placeLocation.coordinates.longitude.toStringAsFixed(4)}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Colors.grey[600],
                       ),
-                    ),
-                    
-                    const SizedBox(height: 8),
-                    
-                    // Activity indicators (you'll get this from API later)
-                    Row(
-                      children: [
-                        _buildActivityChip(
-                          context,
-                          icon: Icons.chat_bubble_outline,
-                          label: '3 active', // This will come from API
-                          color: Colors.green,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildActivityChip(
-                          context,
-                          icon: Icons.circle,
-                          label: '2 unread', // This will come from API  
-                          color: Colors.orange,
-                        ),
-                      ],
                     ),
                   ],
                 ),
@@ -117,36 +98,8 @@ class LocationCard extends StatelessWidget {
           locationId: placeLocation.placeId,
           locationName: placeLocation.name,
           locationCoordinates: placeLocation.coordinates,
+          apiClient: apiClient,
         ),
-      ),
-    );
-  }
-
-  Widget _buildActivityChip(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }

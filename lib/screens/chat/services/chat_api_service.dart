@@ -1,11 +1,13 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:localoop/services/network_helper.dart';
+import 'package:localoop/services/api_client.dart'; 
 
 class ChatService {
+  final ApiClient apiClient;
   final _storage = const FlutterSecureStorage();
+
+  ChatService({required this.apiClient});
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await _storage.read(key: 'auth_token');
@@ -19,37 +21,26 @@ class ChatService {
   }
 
   // -----------------------------
-  // Get messages for a conversation with pagination
+  // Get messages
   // -----------------------------
   Future<Map<String, dynamic>?> getConversationMessages({
     required String conversationId,
     int page = 1,
     int limit = 50,
-    String? before, // Message ID for cursor-based pagination
+    String? before,
   }) async {
     try {
-      final uri = NetworkHelper.buildUri('/chat/conversations/$conversationId/messages').replace(
+      final response = await apiClient.get(
+        '/chat/conversations/$conversationId/messages',
         queryParameters: {
           'page': page.toString(),
           'limit': limit.toString(),
           if (before != null) 'before': before,
         },
+        headers: await _getHeaders(),
       );
 
-      final response = await http.get(uri, headers: await _getHeaders());
-
-      Map<String, dynamic> data;
-      try {
-        data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
-      } catch (_) {
-        throw Exception('Failed to decode response: ${response.body}');
-      }
-
-      if (response.statusCode == 200) {
-        return data;
-      } else {
-        throw Exception('Failed to load messages: ${data['detail'] ?? response.body}');
-      }
+      return response;
     } catch (e) {
       print('Error loading messages: $e');
       return null;
@@ -57,7 +48,7 @@ class ChatService {
   }
 
   // -----------------------------
-  // Send a message to a conversation
+  // Send a message
   // -----------------------------
   Future<Map<String, dynamic>?> sendMessage({
     required String conversationId,
@@ -65,30 +56,18 @@ class ChatService {
     String? replyToId,
   }) async {
     try {
-      final uri = NetworkHelper.buildUri('/chat/conversations/$conversationId/messages');
-      final requestBody = {
+      final body = {
         'content': content,
         if (replyToId != null) 'reply_to_id': replyToId,
       };
 
-      final response = await http.post(
-        uri,
+      final response = await apiClient.post(
+        '/chat/conversations/$conversationId/messages',
+        body: body,
         headers: await _getHeaders(),
-        body: jsonEncode(requestBody),
       );
 
-      Map<String, dynamic> data;
-      try {
-        data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
-      } catch (_) {
-        throw Exception('Failed to decode response: ${response.body}');
-      }
-
-      if (response.statusCode == 200) {
-        return data;
-      } else {
-        throw Exception('Failed to send message: ${data['detail'] ?? response.body}');
-      }
+      return response;
     } catch (e) {
       print('Error sending message: $e');
       return null;
@@ -101,15 +80,9 @@ class ChatService {
   Future<WebSocketChannel?> connectToConversation(String conversationId) async {
     try {
       final token = await _storage.read(key: 'auth_token');
-      if (token == null) {
-        print('No auth token found for WebSocket connection');
-        return null;
-      }
-      
-      final wsUri = NetworkHelper.buildUri('/chat/conversations/$conversationId/ws')
-          .replace(scheme: 'ws')
-          .replace(queryParameters: {'token': token});
-      
+      if (token == null) return null;
+
+      final wsUri = apiClient.buildWsUri('/chat/conversations/$conversationId/ws', queryParams: {'token': token});
       return WebSocketChannel.connect(wsUri);
     } catch (e) {
       print('Error connecting to conversation WebSocket: $e');
@@ -117,64 +90,29 @@ class ChatService {
     }
   }
 
-  Future<WebSocketChannel?> connectToLocation(String locationId) async {
-    try {
-      final token = await _storage.read(key: 'auth_token');
-      if (token == null) {
-        print('No auth token found for WebSocket connection');
-        return null;
-      }
-      
-      final wsUri = NetworkHelper.buildUri('/chat/locations/$locationId/ws')
-          .replace(scheme: 'ws')
-          .replace(queryParameters: {'token': token});
-      
-      return WebSocketChannel.connect(wsUri);
-    } catch (e) {
-      print('Error connecting to location WebSocket: $e');
-      return null;
-    }
-  }
-
-  // -----------------------------
-  // WebSocket utilities
-  // -----------------------------
   void sendTypingIndicator({
     required WebSocketChannel channel,
     required String userId,
     required String userName,
     required bool isTyping,
   }) {
-    try {
-      final message = {
-        'type': 'typing',
-        'user_id': userId,
-        'user_name': userName,
-        'is_typing': isTyping,
-      };
-      
-      channel.sink.add(jsonEncode(message));
-    } catch (e) {
-      print('Error sending typing indicator: $e');
-    }
+    final message = {
+      'type': 'typing',
+      'user_id': userId,
+      'user_name': userName,
+      'is_typing': isTyping,
+    };
+    channel.sink.add(jsonEncode(message));
   }
 
   void sendPing(WebSocketChannel channel) {
-    try {
-      final message = {'type': 'ping'};
-      channel.sink.add(jsonEncode(message));
-    } catch (e) {
-      print('Error sending ping: $e');
-    }
+    channel.sink.add(jsonEncode({'type': 'ping'}));
   }
 
   Map<String, dynamic>? parseWebSocketMessage(dynamic data) {
     try {
-      if (data is String) {
-        return jsonDecode(data) as Map<String, dynamic>;
-      } else if (data is Map<String, dynamic>) {
-        return data;
-      }
+      if (data is String) return jsonDecode(data) as Map<String, dynamic>;
+      if (data is Map<String, dynamic>) return data;
       return null;
     } catch (e) {
       print('Error parsing WebSocket message: $e');

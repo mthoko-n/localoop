@@ -7,17 +7,20 @@ import 'widgets/chat_filter_chips.dart';
 import 'services/conversation_api_service.dart'; 
 import 'chat_screen.dart';
 import 'utils/chat_constants.dart';
+import 'package:localoop/services/api_client.dart'; 
 
 class ConversationsScreen extends StatefulWidget {
   final String locationId;
   final String locationName;
   final Coordinates locationCoordinates;
+  final ApiClient apiClient; 
 
   const ConversationsScreen({
     super.key,
     required this.locationId,
     required this.locationName,
     required this.locationCoordinates,
+    required this.apiClient,
   });
 
   @override
@@ -25,7 +28,7 @@ class ConversationsScreen extends StatefulWidget {
 }
 
 class _ConversationsScreenState extends State<ConversationsScreen> {
-  final ConversationService _conversationService = ConversationService(); // ✅
+  late final ConversationService _conversationService;
 
   List<Conversation> _conversations = [];
   List<ChatFilter> _filters = ChatConstants.filters;
@@ -36,6 +39,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   @override
   void initState() {
     super.initState();
+    _conversationService = ConversationService(api: widget.apiClient);
     _loadConversations();
   }
 
@@ -78,6 +82,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         builder: (context) => ChatScreen(
           conversation: conversation,
           locationName: widget.locationName,
+          apiClient: widget.apiClient,
         ),
       ),
     );
@@ -90,6 +95,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       context: context,
       builder: (context) => _CreateConversationDialog(
         locationId: widget.locationId,
+        conversationService: _conversationService,
         onConversationCreated: (conversation) {
           setState(() => _conversations.insert(0, conversation));
         },
@@ -210,12 +216,15 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 }
 
+// ------------------ DIALOG ------------------
 class _CreateConversationDialog extends StatefulWidget {
   final String locationId;
+  final ConversationService conversationService;
   final Function(Conversation) onConversationCreated;
 
   const _CreateConversationDialog({
     required this.locationId,
+    required this.conversationService,
     required this.onConversationCreated,
   });
 
@@ -228,7 +237,6 @@ class _CreateConversationDialogState
     extends State<_CreateConversationDialog> {
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
-  final ConversationService _conversationService = ConversationService(); 
 
   String _selectedCategory = 'general';
   bool _isCreating = false;
@@ -254,7 +262,7 @@ class _CreateConversationDialogState
     setState(() => _isCreating = true);
 
     try {
-      final conversation = await _conversationService.createConversation(
+      final conversation = await widget.conversationService.createConversation(
         locationId: widget.locationId,
         title: title,
         body: body,

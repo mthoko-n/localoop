@@ -5,15 +5,17 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'model/conversation_model.dart';
 import 'model/message_model.dart'; 
 import 'services/chat_api_service.dart';
+import 'package:localoop/services/api_client.dart';
 
 class ChatScreen extends StatefulWidget {
   final Conversation conversation;
   final String locationName;
-
+  final ApiClient apiClient; 
   const ChatScreen({
     super.key,
     required this.conversation,
     required this.locationName,
+    required this.apiClient, 
   });
 
   @override
@@ -21,28 +23,29 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final ChatService _chatService = ChatService();
+  late final ChatService _chatService; // 
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  
+
   List<Map<String, dynamic>> _messages = [];
   Set<String> _typingUsers = <String>{};
   WebSocketChannel? _webSocketChannel;
   Timer? _typingTimer;
   String? _replyToMessageId;
-  
+
   bool _isLoading = true;
   bool _isSending = false;
   bool _hasMoreMessages = true;
   int _currentPage = 1;
 
-  // Mock current user - replace with actual user management
+  // Mock current user
   final String _currentUserId = 'current-user-id';
   final String _currentUserName = 'Current User';
 
   @override
   void initState() {
     super.initState();
+    _chatService = ChatService(apiClient: widget.apiClient); 
     _loadMessages();
     _connectWebSocket();
     _scrollController.addListener(_onScroll);
@@ -56,7 +59,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _typingTimer?.cancel();
     super.dispose();
   }
-
   void _onScroll() {
     if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
       _loadMoreMessages();

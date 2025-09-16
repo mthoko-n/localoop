@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import 'services/register_service.dart';
 import 'model/register_request.dart';
+import '../../../services/api_client.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final ApiClient apiClient; 
+  const RegisterScreen({super.key, required this.apiClient});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -20,42 +22,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-
-  void _register() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    // Check if passwords match
-    if (_passwordController.text.trim() != _confirmPasswordController.text.trim()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final request = RegisterRequest(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-        displayName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-      );
-
-      await RegisterService().register(request);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration successful!')),
-      );
-
-      Navigator.pop(context); // Back to login
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
 
   String? _validateEmail(String? value) {
     if (value == null || value.isEmpty) {
@@ -75,6 +41,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return 'Password must be at least 6 characters';
     }
     return null;
+  }
+
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_passwordController.text.trim() != _confirmPasswordController.text.trim()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwords do not match')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final request = RegisterRequest(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        displayName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+      );
+
+      await RegisterService(api: widget.apiClient).register(request);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registration successful!')),
+      );
+
+      Navigator.pop(context); // back to login
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -97,14 +108,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Enhanced title with gradient
               ShaderMask(
                 shaderCallback: (bounds) => AppTheme.primaryGradient.createShader(bounds),
                 child: Text(
                   'Create Account',
                   style: textTheme.headlineLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.white, // This will be masked by the gradient
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -116,8 +126,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-
-              // Form card with refined styling
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -125,7 +133,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     key: _formKey,
                     child: Column(
                       children: [
-                        // Name fields in a row
                         Row(
                           children: [
                             Expanded(
@@ -135,8 +142,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   labelText: 'First Name',
                                   prefixIcon: Icon(Icons.person_outline),
                                 ),
-                                validator: (val) =>
-                                    val!.isEmpty ? 'Enter first name' : null,
+                                validator: (val) => val!.isEmpty ? 'Enter first name' : null,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -147,15 +153,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   labelText: 'Last Name',
                                   prefixIcon: Icon(Icons.person_outline),
                                 ),
-                                validator: (val) =>
-                                    val!.isEmpty ? 'Enter last name' : null,
+                                validator: (val) => val!.isEmpty ? 'Enter last name' : null,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
-                        
-                        // Email field
                         TextFormField(
                           controller: _emailController,
                           decoration: const InputDecoration(
@@ -166,8 +169,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           validator: _validateEmail,
                         ),
                         const SizedBox(height: 16),
-                        
-                        // Password field
                         TextFormField(
                           controller: _passwordController,
                           decoration: InputDecoration(
@@ -175,23 +176,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
+                                _obscurePassword ? Icons.visibility_off : Icons.visibility,
                               ),
-                              onPressed: () {
-                                setState(() {
-                                  _obscurePassword = !_obscurePassword;
-                                });
-                              },
+                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                             ),
                           ),
                           obscureText: _obscurePassword,
                           validator: _validatePassword,
                         ),
                         const SizedBox(height: 16),
-                        
-                        // Confirm password field
                         TextFormField(
                           controller: _confirmPasswordController,
                           decoration: InputDecoration(
@@ -199,29 +192,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscureConfirmPassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
+                                _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
                               ),
-                              onPressed: () {
-                                setState(() {
-                                  _obscureConfirmPassword = !_obscureConfirmPassword;
-                                });
-                              },
+                              onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                             ),
                           ),
                           obscureText: _obscureConfirmPassword,
                           validator: (val) {
                             if (val!.isEmpty) return 'Confirm your password';
-                            if (val != _passwordController.text) {
-                              return 'Passwords do not match';
-                            }
+                            if (val != _passwordController.text) return 'Passwords do not match';
                             return null;
                           },
                         ),
                         const SizedBox(height: 24),
-                        
-                        // Register button
                         SizedBox(
                           width: double.infinity,
                           height: 48,
@@ -233,17 +216,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     width: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation(
-                                        colorScheme.onPrimary,
-                                      ),
+                                      valueColor: AlwaysStoppedAnimation(colorScheme.onPrimary),
                                     ),
                                   )
                                 : const Text('Create Account'),
                           ),
                         ),
                         const SizedBox(height: 16),
-                        
-                        // Terms and conditions text
                         Text(
                           'By creating an account, you agree to our Terms of Service and Privacy Policy',
                           style: textTheme.bodySmall?.copyWith(
@@ -256,7 +235,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-              
               const SizedBox(height: 24),
               TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -267,15 +245,5 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
   }
 }

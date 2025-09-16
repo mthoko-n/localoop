@@ -4,18 +4,23 @@ import 'widgets/add_location_card.dart';
 import 'location_search.dart';
 import 'services/home_api_service.dart';
 import 'model/place_location.dart';
+import 'package:localoop/services/api_client.dart';
 
 class HomeScreen extends StatefulWidget {
-  final VoidCallback? onAuthFailure;
-
-  const HomeScreen({super.key, this.onAuthFailure});
+  final ApiClient apiClient;
+  // Remove onAuthFailure since AuthService handles this automatically
+  
+  const HomeScreen({
+    super.key,
+    required this.apiClient,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final HomeApiService _api = HomeApiService();
+  late final HomeApiService _api;
   List<PlaceLocation> _locations = [];
   bool _isLoading = true;
   bool _isEditing = false;
@@ -25,14 +30,14 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _api = HomeApiService(api: widget.apiClient);
     _fetchLocations();
   }
 
   Future<void> _fetchLocations() async {
     setState(() => _isLoading = true);
     try {
-      // If you have a backend that returns user locations, adapt here
-      final locations = await _api.getUserLocations(); // returns List<PlaceLocation>
+      final locations = await _api.getUserLocations();
       setState(() => _locations = locations ?? []);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -47,9 +52,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _removeLocation(String placeId) async {
     try {
-      await _api.removeLocation(placeId); // adapt backend if needed
+      await _api.removeLocation(placeId);
       setState(() => _locations.removeWhere((loc) => loc.placeId == placeId));
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Location removed successfully')),
       );
@@ -73,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final newLocation = await Navigator.push<PlaceLocation>(
       context,
-      MaterialPageRoute(builder: (_) => const LocationSearchScreen()),
+      MaterialPageRoute(builder: (_) => LocationSearchScreen(api: _api)),
     );
 
     if (newLocation != null) {
@@ -155,12 +159,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         onReorder: _onReorder,
                         children: [
                           for (final location in _locations)
-                            LocationCard(
-                              key: ValueKey(location.placeId),
-                              placeLocation: location, // updated prop name
-                              isEditing: _isEditing,
-                              onDelete: () => _removeLocation(location.placeId),
-                            ),
+                           LocationCard(
+                            key: ValueKey(location.placeId),
+                            placeLocation: location,
+                            isEditing: _isEditing,
+                            onDelete: () => _removeLocation(location.placeId),
+                            apiClient: widget.apiClient,
+                          ),
+
                           if (_locations.length < maxLocations)
                             AddLocationCard(
                               key: const ValueKey('add_card'),

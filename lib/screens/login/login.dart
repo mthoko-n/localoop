@@ -5,11 +5,17 @@ import 'services/google_login_service.dart';
 import 'services/google_sign_in_helper.dart';
 import 'model/login_request.dart';
 import 'register.dart';
+import '../../../services/api_client.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback? onLoginSuccess;
+  final ApiClient apiClient; 
 
-  const LoginScreen({super.key, this.onLoginSuccess});
+  const LoginScreen({
+    super.key,
+    this.onLoginSuccess,
+    required this.apiClient,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -20,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _obscurePassword = true; // Added for password visibility toggle
+  bool _obscurePassword = true;
 
   void _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -33,16 +39,14 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text.trim(),
       );
 
-      final response = await LoginService().login(request);
+      // Use the ApiClient passed down from MainNavigation
+      final response = await LoginService(api: widget.apiClient).login(request);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Welcome!')),
       );
 
-      // Call callback to show MainNavigation
-      if (widget.onLoginSuccess != null) {
-        widget.onLoginSuccess!();
-      }
+      widget.onLoginSuccess?.call();
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.toString())));
@@ -51,26 +55,40 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _googleLogin() async {
-    setState(() => _isLoading = true);
-    try {
-      final idToken = await signInWithGoogle();
-      if (idToken != null) {
-        final token = await GoogleLoginService().signInWithGoogle(idToken);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Logged in with Google!')));
+void _googleLogin() async {
+  setState(() => _isLoading = true);
 
-        // Call callback after Google login
-        if (widget.onLoginSuccess != null) {
-          widget.onLoginSuccess!();
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Google login failed')));
-    } finally {
-      setState(() => _isLoading = false);
+  try {
+    // Step 1: get Google ID token
+    final idToken = await signInWithGoogle();
+
+    if (idToken != null) {
+      // Step 2: GoogleLoginService now handles token storage and AuthService notification
+      final token = await GoogleLoginService(api: widget.apiClient)
+          .signInWithGoogle(idToken);
+
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Logged in with Google!')),
+      );
+
+      // Step 3: callback to update MainNavigation
+      widget.onLoginSuccess?.call();
     }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Google login failed')),
+    );
+  } finally {
+    setState(() => _isLoading = false);
+  }
+}
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -85,14 +103,13 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Enhanced app title with gradient
               ShaderMask(
                 shaderCallback: (bounds) => AppTheme.primaryGradient.createShader(bounds),
                 child: Text(
                   'LocaLoop',
                   style: textTheme.headlineLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.white, // This will be masked by the gradient
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -104,8 +121,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
-              // Form card with subtle styling
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -167,8 +182,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        
-                        // Divider with "OR"
                         Row(
                           children: [
                             Expanded(child: Divider(color: colorScheme.outline)),
@@ -185,7 +198,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        
                         SizedBox(
                           width: double.infinity,
                           height: 48,
@@ -200,13 +212,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              
               const SizedBox(height: 24),
               TextButton(
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const RegisterScreen()),
+                    builder: (_) => RegisterScreen(apiClient: widget.apiClient),
+                  ),
                 ),
                 child: const Text('Don\'t have an account? Register'),
               ),
@@ -215,12 +227,5 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
   }
 }

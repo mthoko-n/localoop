@@ -1,23 +1,27 @@
-
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:localoop/services/network_helper.dart';
+import 'package:localoop/services/api_client.dart';
+import 'package:localoop/services/auth_service.dart'; // Add this import
 import '../model/google_login_request.dart';
 
 class GoogleLoginService {
+  final ApiClient api;
+
+  GoogleLoginService({required this.api});
+
   Future<String> signInWithGoogle(String idToken) async {
-    final uri = NetworkHelper.buildUri('/auth/google');
-    final response = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(GoogleLoginRequest(idToken: idToken).toJson()),
+    final data = await api.post(
+      '/auth/google',
+      body: GoogleLoginRequest(idToken: idToken).toJson(),
     );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['access_token']; // JWT for your app
-    } else {
-      throw Exception('Google login failed: ${response.body}');
-    }
+    final token = data['access_token'] as String;
+
+    // Store token securely via ApiClient
+    await api.storage.write(key: 'auth_token', value: token);
+
+    // Notify AuthService about successful login
+    await AuthService().loginSuccess();
+
+    return token; // JWT for your app
   }
 }

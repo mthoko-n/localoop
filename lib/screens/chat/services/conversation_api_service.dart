@@ -1,22 +1,10 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../model/conversation_model.dart';
-import 'package:localoop/services/network_helper.dart';
+import 'package:localoop/services/api_client.dart';
 
 class ConversationService {
-  final _storage = const FlutterSecureStorage();
+  final ApiClient api;
 
-  Future<Map<String, String>> _getHeaders() async {
-    final token = await _storage.read(key: 'auth_token');
-    if (token == null) {
-      throw Exception('No auth token found. User might not be logged in.');
-    }
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    };
-  }
+  ConversationService({required this.api});
 
   // -----------------------------
   // Get conversations for a specific location
@@ -28,31 +16,16 @@ class ConversationService {
     int limit = 20,
   }) async {
     try {
-      final uri = NetworkHelper.buildUri('/chat/locations/$locationId/conversations').replace(
-        queryParameters: {
-          if (category != null) 'category': category,
-          'page': page.toString(),
-          'limit': limit.toString(),
-        },
-      );
+      final queryParams = {
+        if (category != null) 'category': category,
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
 
-      final response = await http.get(uri, headers: await _getHeaders());
+      final data = await api.get('/chat/locations/$locationId/conversations?${Uri(queryParameters: queryParams).query}');
 
-      Map<String, dynamic> data;
-      try {
-        data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
-      } catch (_) {
-        throw Exception('Failed to decode response: ${response.body}');
-      }
-
-      if (response.statusCode == 200) {
-        final conversationsData = (data['conversations'] as List<dynamic>?) ?? [];
-        return conversationsData
-            .map((json) => Conversation.fromJson(json))
-            .toList();
-      } else {
-        throw Exception('Failed to load conversations: ${data['detail'] ?? response.body}');
-      }
+      final conversationsData = (data['conversations'] as List<dynamic>?) ?? [];
+      return conversationsData.map((json) => Conversation.fromJson(json)).toList();
     } catch (e) {
       print('Error loading conversations: $e');
       return null;
@@ -69,34 +42,18 @@ class ConversationService {
     required String category,
   }) async {
     try {
-      final uri = NetworkHelper.buildUri('/chat/locations/$locationId/conversations');
       final requestBody = {
         'title': title,
         'body': body,
         'category': category,
       };
 
-      final response = await http.post(
-        uri,
-        headers: await _getHeaders(),
-        body: jsonEncode(requestBody),
-      );
+      final data = await api.post('/chat/locations/$locationId/conversations', body: requestBody);
 
-      Map<String, dynamic> data;
-      try {
-        data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
-      } catch (_) {
-        throw Exception('Failed to decode response: ${response.body}');
-      }
-
-      if (response.statusCode == 200) {
-        if (data.containsKey('conversation')) {
-          return Conversation.fromJson(data['conversation']);
-        } else {
-          throw Exception('No conversation returned in response.');
-        }
+      if (data.containsKey('conversation')) {
+        return Conversation.fromJson(data['conversation']);
       } else {
-        throw Exception('Failed to create conversation: ${data['detail'] ?? response.body}');
+        throw Exception('No conversation returned in response.');
       }
     } catch (e) {
       print('Error creating conversation: $e');
@@ -109,21 +66,8 @@ class ConversationService {
   // -----------------------------
   Future<Conversation?> getConversation(String conversationId) async {
     try {
-      final uri = NetworkHelper.buildUri('/chat/conversations/$conversationId');
-      final response = await http.get(uri, headers: await _getHeaders());
-
-      Map<String, dynamic> data;
-      try {
-        data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
-      } catch (_) {
-        throw Exception('Failed to decode response: ${response.body}');
-      }
-
-      if (response.statusCode == 200) {
-        return Conversation.fromJson(data);
-      } else {
-        throw Exception('Failed to get conversation: ${data['detail'] ?? response.body}');
-      }
+      final data = await api.get('/chat/conversations/$conversationId');
+      return Conversation.fromJson(data);
     } catch (e) {
       print('Error loading conversation: $e');
       return null;

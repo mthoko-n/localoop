@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'theme/app_theme.dart';
 import 'screens/navigation/main_navigation.dart';
+import 'services/api_client.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,21 +10,27 @@ Future<void> main() async {
   // Load environment variables
   await dotenv.load(fileName: ".env.dev"); // switch to .env.prod in release
 
-  runApp(const LocalLoopApp());
+  // Initialize ApiClient with BASE_URL from .env
+  final apiClient = ApiClient(baseUrl: dotenv.env['BASE_URL'] ?? 'http://localhost:8000');
+
+  runApp(LocalLoopApp(apiClient: apiClient));
 }
 
 class LocalLoopApp extends StatelessWidget {
-  const LocalLoopApp({super.key});
+  final ApiClient apiClient;
+
+  const LocalLoopApp({super.key, required this.apiClient});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'LocaLoop',
+      title: 'LocalLoop',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.light,
-      home: const MainNavigation(),
+      // Pass ApiClient down to MainNavigation
+      home: MainNavigation(apiClient: apiClient),
     );
   }
 }
