@@ -76,10 +76,11 @@ class ApiClient {
     return _processResponse(response);
   }
 
-  /// Centralized DELETE
+  /// Centralized DELETE - Updated to support body
   Future<JsonMap> delete(
     String path, {
     Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? body,
     Map<String, String>? headers,
   }) async {
     final token = await _getToken();
@@ -94,6 +95,7 @@ class ApiClient {
         if (token != null) 'Authorization': 'Bearer $token',
         if (headers != null) ...headers,
       },
+      body: body != null ? jsonEncode(body) : null,
     );
 
     return _processResponse(response);

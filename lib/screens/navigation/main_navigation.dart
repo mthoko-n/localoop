@@ -2,8 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../home/home.dart';
 import '../login/login.dart';
+import '../profile/profile.dart'; 
 import '../../../services/api_client.dart';
-import '../../../services/auth_service.dart'; // Add this import
+import '../../../services/auth_service.dart';
 
 class MainNavigation extends StatefulWidget {
   final ApiClient apiClient;
@@ -81,7 +82,7 @@ class _MainNavigationState extends State<MainNavigation> {
     final screens = [
       HomeScreen(apiClient: widget.apiClient),
       const Center(child: Text('Notifications (not implemented)')),
-      const Center(child: Text('Profile (not implemented)')),
+      ProfileScreen(apiClient: widget.apiClient), 
     ];
 
     return Scaffold(
