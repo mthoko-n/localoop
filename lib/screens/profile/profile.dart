@@ -7,7 +7,7 @@ import 'widgets/profile_action_card.dart';
 import 'widgets/edit_profile_dialog.dart';
 import 'widgets/change_password_dialog.dart';
 import 'widgets/delete_account_dialog.dart';
-
+import 'package:localoop/services/auth_service.dart';
 class ProfileScreen extends StatefulWidget {
   final ApiClient apiClient;
 
@@ -125,17 +125,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _logout() async {
-    try {
-      await _api.logout();
-      // Navigate to login screen
-      if (mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      }
-    } catch (e) {
-      _showErrorSnackBar('Failed to logout: $e');
+ Future<void> _logout() async {
+  try {
+    await _api.logout();          // deletes token from storage
+    AuthService().logout();        // triggers authStateStream immediately
+
+    if (mounted) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
     }
+  } catch (e) {
+    _showErrorSnackBar('Failed to logout: $e');
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
