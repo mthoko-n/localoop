@@ -15,27 +15,25 @@ class LoginService {
 
     final loginResponse = LoginResponse.fromJson(data);
 
-    // Store token securely via ApiClient (keep existing behavior)
-    await api.storage.write(
-      key: 'auth_token',
-      value: loginResponse.accessToken,
-    );
-
-    // Notify AuthService about successful login
-    await AuthService().loginSuccess();
+    // Store both tokens via AuthService (updated to handle token pairs)
+    await AuthService().login(data); // Pass the full response with both tokens
 
     return loginResponse;
   }
 
-  /// Get stored token
+  /// Get stored access token (now handled by AuthService)
   Future<String?> getToken() async {
-    return await api.storage.read(key: 'auth_token');
+    return await AuthService().getValidToken(); // This ensures we get a valid, fresh token
   }
 
-  /// Logout
+  /// Logout with refresh token revocation
   Future<void> logout() async {
-    await api.storage.delete(key: 'auth_token');
-    // Notify AuthService about logout
+    // AuthService now handles proper logout including refresh token revocation
     await AuthService().logout();
+  }
+
+  /// Logout from all devices
+  Future<void> logoutAllDevices() async {
+    await AuthService().logoutAllDevices();
   }
 }

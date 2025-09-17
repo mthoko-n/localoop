@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -9,6 +10,9 @@ class AuthService {
 
   final _storage = const FlutterSecureStorage();
   final _authStateController = StreamController<bool>.broadcast();
+  
+  // Add your API base URL here
+  final String _baseUrl = 'YOUR_API_BASE_URL'; // Replace with your actual API URL
 
   Stream<bool> get authStateStream => _authStateController.stream;
   bool _isAuthenticated = false;
@@ -31,6 +35,15 @@ class AuthService {
           );
           final exp = payload['exp'] as int;
           isValid = DateTime.now().millisecondsSinceEpoch ~/ 1000 < exp;
+          
+          // If token is close to expiry (within 5 minutes), try to refresh
+          final timeToExpiry = exp - (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+          if (isValid && timeToExpiry < 300) { // 5 minutes
+            await _attemptTokenRefresh();
+            // Re-check after refresh attempt
+            final newToken = await _storage.read(key: 'auth_token');
+            isValid = newToken != null && _isTokenValid(newToken);
+          }
         }
       } catch (_) {
         isValid = false;
@@ -38,10 +51,25 @@ class AuthService {
     }
 
     if (!isValid) {
-      await _storage.delete(key: 'auth_token');
+      await _clearTokens();
     }
 
     _updateAuthState(isValid);
+  }
+
+  bool _isTokenValid(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+      
+      final payload = json.decode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))
+      );
+      final exp = payload['exp'] as int;
+      return DateTime.now().millisecondsSinceEpoch ~/ 1000 < exp;
+    } catch (_) {
+      return false;
+    }
   }
 
   void _updateAuthState(bool isAuthenticated) {
@@ -49,55 +77,140 @@ class AuthService {
     _authStateController.add(isAuthenticated);
   }
 
-  Future<void> login(String token) async {
-    await _storage.write(key: 'auth_token', value: token);
+  Future<void> login(Map<String, dynamic> tokenResponse) async {
+    await _storage.write(key: 'auth_token', value: tokenResponse['access_token']);
+    await _storage.write(key: 'refresh_token', value: tokenResponse['refresh_token']);
     _updateAuthState(true);
   }
 
-  // Overloaded method for when you already have the token stored
   Future<void> loginSuccess() async {
     _updateAuthState(true);
   }
 
   Future<void> logout() async {
-    await _storage.delete(key: 'auth_token');
+    // Try to revoke refresh token on server
+    await _revokeRefreshToken();
+    await _clearTokens();
     _updateAuthState(false);
   }
 
-  // This is what your ApiClient will call
-  void notifyAuthFailure() {
-    logout(); // This will trigger the stream and update UI
+  Future<void> logoutAllDevices() async {
+    try {
+      final token = await _storage.read(key: 'auth_token');
+      if (token != null) {
+        await http.post(
+          Uri.parse('$_baseUrl/auth/logout-all'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+      }
+    } catch (e) {
+      print('Error logging out from all devices: $e');
+    } finally {
+      await _clearTokens();
+      _updateAuthState(false);
+    }
   }
 
-  // ✅ New: Decode JWT and return the user id ("sub" or "user_id")
-// Replace your getCurrentUserId method with this:
-
-Future<String?> getCurrentUserId() async {
-  final token = await _storage.read(key: 'auth_token');
-  print("Token from storage: $token"); // <-- print the raw token
-  if (token == null) return null;
-
-  try {
-    final parts = token.split('.');
-    if (parts.length != 3) return null;
-
-    final payload = json.decode(
-      utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))
-    ) as Map<String, dynamic>;
-
-    //print("Decoded payload: $payload"); // <-- print the decoded payload
-
-    // Use user_id first (the actual MongoDB ObjectId), fallback to sub if needed
-    final userId = payload['user_id']?.toString() ?? payload['sub']?.toString();
-    //print("Current user ID: $userId"); // <-- print the final user ID
-
-    return userId;
-  } catch (e) {
-    print("Error decoding token: $e"); // <-- print any decoding errors
-    return null;
+  Future<void> _revokeRefreshToken() async {
+    try {
+      final refreshToken = await _storage.read(key: 'refresh_token');
+      if (refreshToken != null) {
+        await http.post(
+          Uri.parse('$_baseUrl/auth/logout'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({'refresh_token': refreshToken}),
+        );
+      }
+    } catch (e) {
+      print('Error revoking refresh token: $e');
+    }
   }
-}
 
+  Future<void> _clearTokens() async {
+    await _storage.delete(key: 'auth_token');
+    await _storage.delete(key: 'refresh_token');
+  }
+
+  // This is what your ApiClient will call when it receives a 401
+  Future<bool> notifyAuthFailure() async {
+    // Try to refresh the token first
+    final refreshed = await _attemptTokenRefresh();
+    if (!refreshed) {
+      // If refresh fails, logout
+      await logout();
+      return false;
+    }
+    return true;
+  }
+
+  Future<bool> _attemptTokenRefresh() async {
+    try {
+      final refreshToken = await _storage.read(key: 'refresh_token');
+      if (refreshToken == null) return false;
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/auth/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'refresh_token': refreshToken}),
+      );
+
+      if (response.statusCode == 200) {
+        final tokenData = json.decode(response.body);
+        await _storage.write(key: 'auth_token', value: tokenData['access_token']);
+        await _storage.write(key: 'refresh_token', value: tokenData['refresh_token']);
+        return true;
+      } else {
+        // Refresh failed, clear tokens
+        await _clearTokens();
+        return false;
+      }
+    } catch (e) {
+      print('Token refresh failed: $e');
+      await _clearTokens();
+      return false;
+    }
+  }
+
+  Future<String?> getValidToken() async {
+    final token = await _storage.read(key: 'auth_token');
+    if (token == null) return null;
+
+    if (!_isTokenValid(token)) {
+      // Try to refresh
+      final refreshed = await _attemptTokenRefresh();
+      if (refreshed) {
+        return await _storage.read(key: 'auth_token');
+      } else {
+        return null;
+      }
+    }
+
+    return token;
+  }
+
+  Future<String?> getCurrentUserId() async {
+    final token = await getValidToken(); // This ensures we have a valid token
+    if (token == null) return null;
+
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+
+      final payload = json.decode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))
+      ) as Map<String, dynamic>;
+
+      // Use user_id first (the actual MongoDB ObjectId), fallback to sub if needed
+      final userId = payload['user_id']?.toString() ?? payload['sub']?.toString();
+      return userId;
+    } catch (e) {
+      print("Error decoding token: $e");
+      return null;
+    }
+  }
 
   void dispose() {
     _authStateController.close();

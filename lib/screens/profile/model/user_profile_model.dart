@@ -4,6 +4,7 @@ class UserProfile {
   final String displayName;
   final String lastName;
   final String memberSince;
+  final bool hasPassword; // <-- add this
 
   UserProfile({
     required this.id,
@@ -11,6 +12,7 @@ class UserProfile {
     required this.displayName,
     required this.lastName,
     required this.memberSince,
+    required this.hasPassword, // <-- add to constructor
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class UserProfile {
       displayName: json['display_name'] as String? ?? '',
       lastName: json['last_name'] as String? ?? '',
       memberSince: json['member_since'] as String? ?? '',
+      hasPassword: json['hasPassword'] as bool? ?? false, // <-- map from backend
     );
   }
 
@@ -30,6 +33,7 @@ class UserProfile {
       'display_name': displayName,
       'last_name': lastName,
       'member_since': memberSince,
+      'hasPassword': hasPassword, // <-- include in JSON
     };
   }
 
@@ -39,6 +43,7 @@ class UserProfile {
     String? displayName,
     String? lastName,
     String? memberSince,
+    bool? hasPassword, // <-- add to copyWith
   }) {
     return UserProfile(
       id: id ?? this.id,
@@ -46,6 +51,7 @@ class UserProfile {
       displayName: displayName ?? this.displayName,
       lastName: lastName ?? this.lastName,
       memberSince: memberSince ?? this.memberSince,
+      hasPassword: hasPassword ?? this.hasPassword,
     );
   }
 }

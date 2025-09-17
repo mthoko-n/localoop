@@ -1,4 +1,5 @@
 import '../../../services/api_client.dart';
+import '../../../services/auth_service.dart';
 import '../model/user_profile_model.dart';
 
 class ProfileApiService {
@@ -45,23 +46,46 @@ class ProfileApiService {
       'current_password': currentPassword,
       'new_password': newPassword,
     });
+    
+    // Password change logs out all devices for security
+    // The user will need to log in again
+    await AuthService().logout();
+    
     return data['message'] as String;
   }
 
   // -----------------------------
   // Delete account
   // -----------------------------
-  Future<String> deleteAccount({required String password}) async {
-    final data = await api.delete('/profile/delete-account', body: {
-      'password': password,
-    });
+  Future<String> deleteAccount({String? password}) async {
+    final Map<String, dynamic> body = {};
+    
+    // Only add password if provided (Google users might not have password)
+    if (password != null && password.isNotEmpty) {
+      body['password'] = password;
+    }
+    
+    final data = await api.delete('/profile/delete-account', body: body);
+    
+    // Account deletion automatically logs out all devices
+    // AuthService logout is called by the backend, but we ensure it here too
+    await AuthService().logout();
+    
     return data['message'] as String;
   }
 
   // -----------------------------
-  // Logout (clear token)
+  // Logout (proper refresh token handling)
   // -----------------------------
   Future<void> logout() async {
-    await api.storage.delete(key: 'auth_token');
+    // Use AuthService logout which properly revokes refresh tokens
+    await AuthService().logout();
+  }
+
+  // -----------------------------
+  // Logout from all devices
+  // -----------------------------
+  Future<void> logoutAllDevices() async {
+    await AuthService().logoutAllDevices();
   }
 }

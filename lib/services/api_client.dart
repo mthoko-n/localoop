@@ -11,7 +11,7 @@ class ApiClient {
 
   ApiClient({required this.baseUrl});
 
-  Future<String?> _getToken() async => await storage.read(key: 'auth_token');
+  Future<String?> _getToken() async => await AuthService().getValidToken();
   Future<void> _clearToken() async => await storage.delete(key: 'auth_token');
 
   /// Centralized GET
@@ -110,14 +110,18 @@ class ApiClient {
     return uri;
   }
 
-  JsonMap _processResponse(http.Response response) {
+  Future<JsonMap> _processResponse(http.Response response) async {
     final statusCode = response.statusCode;
     final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
 
     if (statusCode == 401) {
-      _clearToken();
-      AuthService().notifyAuthFailure(); // ← This is the ONLY line you need to add!
-      throw ApiException(statusCode, 'Unauthorized');
+      // Try to refresh token before giving up
+      final refreshed = await AuthService().notifyAuthFailure();
+      if (!refreshed) {
+        throw ApiException(statusCode, 'Authentication failed');
+      }
+      // If refresh was successful, the calling code should retry the request
+      throw ApiException(statusCode, 'Token refreshed - retry needed');
     }
 
     if (statusCode < 200 || statusCode >= 300) {

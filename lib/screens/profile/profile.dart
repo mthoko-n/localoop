@@ -8,6 +8,7 @@ import 'widgets/edit_profile_dialog.dart';
 import 'widgets/change_password_dialog.dart';
 import 'widgets/delete_account_dialog.dart';
 import 'package:localoop/services/auth_service.dart';
+
 class ProfileScreen extends StatefulWidget {
   final ApiClient apiClient;
 
@@ -88,6 +89,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _changePassword() async {
+    if (_profile == null) return;
+
+    // Check if user has a password (Google users might not)
+    if (!_profile!.hasPassword) {
+      _showErrorSnackBar('Cannot change password for social login accounts');
+      return;
+    }
+
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (context) => const ChangePasswordDialog(),
@@ -99,7 +108,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           currentPassword: result['currentPassword']!,
           newPassword: result['newPassword']!,
         );
-        _showSuccessSnackBar(message);
+        
+        if (mounted) {
+          // Show success message first
+          _showSuccessSnackBar('$message You will be redirected to login.');
+          
+          // Small delay to let user read the message
+          await Future.delayed(const Duration(seconds: 2));
+          
+          // Navigate to login screen
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
       } catch (e) {
         _showErrorSnackBar('Failed to change password: $e');
       }
@@ -107,16 +126,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _deleteAccount() async {
-    final password = await showDialog<String>(
+    if (_profile == null) return;
+
+    final password = await showDialog<String?>(
       context: context,
-      builder: (context) => const DeleteAccountDialog(),
+      builder: (context) => DeleteAccountDialog(profile: _profile!),
     );
 
     if (password != null) {
       try {
-        await _api.deleteAccount(password: password);
-        // Navigate to login screen or handle account deletion
+        final message = await _api.deleteAccount(password: password);
+        
         if (mounted) {
+          // Show the custom message from backend
+          _showSuccessSnackBar(message);
+          
+          // Small delay to let user read the message
+          await Future.delayed(const Duration(seconds: 2));
+          
+          // Navigate back to login/home
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       } catch (e) {
@@ -125,19 +153,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
- Future<void> _logout() async {
-  try {
-    await _api.logout();          // deletes token from storage
-    AuthService().logout();        // triggers authStateStream immediately
-
-    if (mounted) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
+  Future<void> _logout() async {
+    try {
+      await _api.logout();
+      
+      if (mounted) {
+        _showSuccessSnackBar('Logged out successfully');
+        
+        // Small delay to let user see the message
+        await Future.delayed(const Duration(seconds: 1));
+        
+        // Navigate back to login/home
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to logout: $e');
     }
-  } catch (e) {
-    _showErrorSnackBar('Failed to logout: $e');
   }
-}
 
+  Future<void> _logoutAllDevices() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout All Devices'),
+        content: const Text(
+          'This will log you out from all devices and browsers. '
+          'You will need to log in again on each device.\n\n'
+          'Continue?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Logout All'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _api.logoutAllDevices();
+        
+        if (mounted) {
+          _showSuccessSnackBar('Logged out from all devices');
+          
+          await Future.delayed(const Duration(seconds: 1));
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
+      } catch (e) {
+        _showErrorSnackBar('Failed to logout from all devices: $e');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -178,22 +250,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         
                         const SizedBox(height: 8),
                         
-                        ProfileActionCard(
-                          title: 'Change Password',
-                          subtitle: 'Update your account password',
-                          icon: Icons.lock,
-                          onTap: _changePassword,
-                        ),
+                        // Only show change password for users with passwords
+                        if (_profile!.hasPassword)
+                          ProfileActionCard(
+                            title: 'Change Password',
+                            subtitle: 'Update your account password',
+                            icon: Icons.lock,
+                            onTap: _changePassword,
+                          ),
                         
-                        const SizedBox(height: 24),
+                        if (_profile!.hasPassword) const SizedBox(height: 24),
+                        if (!_profile!.hasPassword) const SizedBox(height: 24),
                         
                         // Logout Button
                         Card(
                           child: ListTile(
                             leading: const Icon(Icons.logout, color: Colors.orange),
                             title: const Text('Logout'),
-                            subtitle: const Text('Sign out of your account'),
+                            subtitle: const Text('Sign out of this device'),
                             onTap: _logout,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 8),
+                        
+                        // Logout All Devices Button
+                        Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.logout_outlined, color: Colors.deepOrange),
+                            title: const Text('Logout All Devices'),
+                            subtitle: const Text('Sign out from all devices and browsers'),
+                            onTap: _logoutAllDevices,
                           ),
                         ),
                         

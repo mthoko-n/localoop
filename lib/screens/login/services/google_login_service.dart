@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:localoop/services/api_client.dart';
-import 'package:localoop/services/auth_service.dart'; // Add this import
+import 'package:localoop/services/auth_service.dart';
 import '../model/google_login_request.dart';
 
 class GoogleLoginService {
@@ -8,20 +8,21 @@ class GoogleLoginService {
 
   GoogleLoginService({required this.api});
 
-  Future<String> signInWithGoogle(String idToken) async {
+  Future<Map<String, dynamic>> signInWithGoogle(String idToken) async {
     final data = await api.post(
       '/auth/google',
       body: GoogleLoginRequest(idToken: idToken).toJson(),
     );
 
-    final token = data['access_token'] as String;
+    // Store both tokens via AuthService (handles token pairs)
+    await AuthService().login(data);
 
-    // Store token securely via ApiClient
-    await api.storage.write(key: 'auth_token', value: token);
-
-    // Notify AuthService about successful login
-    await AuthService().loginSuccess();
-
-    return token; // JWT for your app
+    // Return the full token response instead of just access token
+    return {
+      'access_token': data['access_token'],
+      'refresh_token': data['refresh_token'],
+      'token_type': data['token_type'] ?? 'bearer',
+      'expires_in': data['expires_in'] ?? 900,
+    };
   }
 }

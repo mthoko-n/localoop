@@ -29,31 +29,40 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   void _login() async {
-    if (!_formKey.currentState!.validate()) return;
+  if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+  setState(() => _isLoading = true);
 
-    try {
-      final request = LoginRequest(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+  try {
+    final request = LoginRequest(
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
+    );
 
-      // Use the ApiClient passed down from MainNavigation
-      final response = await LoginService(api: widget.apiClient).login(request);
+    // Use the ApiClient passed down from MainNavigation
+    final response = await LoginService(api: widget.apiClient).login(request);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Welcome!')),
-      );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Welcome!')),
+    );
 
-      widget.onLoginSuccess?.call();
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
-    } finally {
-      setState(() => _isLoading = false);
+    widget.onLoginSuccess?.call();
+  } catch (e) {
+    String errorMessage = 'An error occurred. Please try again.';
+
+    // Check for your APIException or HTTP 401
+    if (e.toString().contains('401')) {
+      errorMessage = 'Please enter correct login details';
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(errorMessage)),
+    );
+  } finally {
+    setState(() => _isLoading = false);
   }
+}
+
 
 void _googleLogin() async {
   setState(() => _isLoading = true);
