@@ -5,7 +5,10 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'model/conversation_model.dart';
 import 'model/message_model.dart'; 
 import 'services/chat_api_service.dart';
+import 'widgets/message_bubble.dart';
 import 'package:localoop/services/api_client.dart';
+import 'package:localoop/services/auth_service.dart';
+import '../profile/services/profile_api_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final Conversation conversation;
@@ -23,7 +26,8 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  late final ChatService _chatService; // 
+  late final ChatService _chatService;
+  late final ProfileApiService _profileService;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -38,14 +42,15 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _hasMoreMessages = true;
   int _currentPage = 1;
 
-  // Mock current user
-  final String _currentUserId = 'current-user-id';
-  final String _currentUserName = 'Current User';
+  String? _currentUserId;
+  String? _currentUserName;
 
   @override
   void initState() {
     super.initState();
-    _chatService = ChatService(apiClient: widget.apiClient); 
+    _chatService = ChatService(apiClient: widget.apiClient);
+    _profileService = ProfileApiService(api: widget.apiClient);
+    _loadCurrentUser();
     _loadMessages();
     _connectWebSocket();
     _scrollController.addListener(_onScroll);
@@ -59,6 +64,33 @@ class _ChatScreenState extends State<ChatScreen> {
     _typingTimer?.cancel();
     super.dispose();
   }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final id = await AuthService().getCurrentUserId();
+      if (id != null && mounted) {
+        setState(() => _currentUserId = id);
+        
+        // Get user profile to fetch display name
+        final profile = await _profileService.getUserProfile();
+        if (profile != null && mounted) {
+          final displayName = profile.displayName.isNotEmpty 
+              ? profile.displayName 
+              : 'You';
+          setState(() => _currentUserName = displayName);
+        }
+      }
+    } catch (e) {
+      print('Error loading current user: $e');
+      // Fallback values
+      if (mounted) {
+        setState(() {
+          _currentUserName = 'You';
+        });
+      }
+    }
+  }
+
   void _onScroll() {
     if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
       _loadMoreMessages();
@@ -156,6 +188,15 @@ class _ChatScreenState extends State<ChatScreen> {
         }
         break;
         
+      case 'message_deleted':
+        final messageId = wsMessage['message_id'] as String?;
+        if (messageId != null) {
+          setState(() {
+            _messages.removeWhere((msg) => msg['id'] == messageId);
+          });
+        }
+        break;
+        
       case 'typing':
         final userId = wsMessage['user_id'] as String?;
         final userName = wsMessage['user_name'] as String?;
@@ -210,26 +251,42 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _deleteMessage(String messageId) async {
+    try {
+      final success = await _chatService.deleteMessage(messageId);
+      if (success && mounted) {
+        setState(() {
+          _messages.removeWhere((msg) => msg['id'] == messageId);
+        });
+        _showSuccess('Message deleted');
+      } else {
+        _showError('Failed to delete message');
+      }
+    } catch (e) {
+      _showError('Failed to delete message: $e');
+    }
+  }
+
   void _onTypingChanged() {
     _typingTimer?.cancel();
     
     // Send typing indicator
-    if (_webSocketChannel != null) {
+    if (_webSocketChannel != null && _currentUserId != null && _currentUserName != null) {
       _chatService.sendTypingIndicator(
         channel: _webSocketChannel!,
-        userId: _currentUserId,
-        userName: _currentUserName,
+        userId: _currentUserId!,
+        userName: _currentUserName!,
         isTyping: true,
       );
     }
 
     // Stop typing after 2 seconds of inactivity
     _typingTimer = Timer(const Duration(seconds: 2), () {
-      if (_webSocketChannel != null) {
+      if (_webSocketChannel != null && _currentUserId != null && _currentUserName != null) {
         _chatService.sendTypingIndicator(
           channel: _webSocketChannel!,
-          userId: _currentUserId,
-          userName: _currentUserName,
+          userId: _currentUserId!,
+          userName: _currentUserName!,
           isTyping: false,
         );
       }
@@ -268,6 +325,17 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _showSuccess(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
   Map<String, dynamic>? get _replyMessage {
     if (_replyToMessageId == null) return null;
     try {
@@ -295,6 +363,18 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       return '';
     }
+  }
+
+  // Convert Map to Message object for MessageBubble
+  Message _mapToMessage(Map<String, dynamic> messageData) {
+    return Message(
+      id: messageData['id'] ?? '',
+      content: messageData['content'] ?? '',
+      authorId: messageData['author_id'] ?? '',
+      authorName: messageData['author_name'] ?? 'Unknown',
+      timestamp: DateTime.tryParse(messageData['timestamp'] ?? '') ?? DateTime.now(),
+      conversationId: widget.conversation.id,
+    );
   }
 
   @override
@@ -372,86 +452,15 @@ class _ChatScreenState extends State<ChatScreen> {
                                   : const SizedBox.shrink();
                             }
 
-                            final message = _messages[index];
-                            final isFromCurrentUser = message['author_id'] == _currentUserId;
+                            final messageData = _messages[index];
+                            final message = _mapToMessage(messageData);
+                            final isFromCurrentUser = messageData['author_id'] == _currentUserId;
                             
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              child: Row(
-                                mainAxisAlignment: isFromCurrentUser 
-                                    ? MainAxisAlignment.end 
-                                    : MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (!isFromCurrentUser)
-                                    CircleAvatar(
-                                      radius: 16,
-                                      child: Text(
-                                        (message['author_name'] as String? ?? 'U')[0].toUpperCase(),
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                    ),
-                                  if (!isFromCurrentUser) const SizedBox(width: 8),
-                                  
-                                  Flexible(
-                                    child: GestureDetector(
-                                      onLongPress: () => _replyToMessage(message),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: isFromCurrentUser
-                                              ? theme.colorScheme.primary
-                                              : theme.colorScheme.surfaceVariant,
-                                          borderRadius: BorderRadius.circular(16),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            if (!isFromCurrentUser)
-                                              Text(
-                                                message['author_name'] ?? 'Unknown',
-                                                style: theme.textTheme.bodySmall?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            if (!isFromCurrentUser) const SizedBox(height: 4),
-                                            
-                                            Text(
-                                              message['content'] ?? '',
-                                              style: TextStyle(
-                                                color: isFromCurrentUser
-                                                    ? theme.colorScheme.onPrimary
-                                                    : theme.colorScheme.onSurface,
-                                              ),
-                                            ),
-                                            
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              _formatTime(message['timestamp'] ?? ''),
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                color: isFromCurrentUser
-                                                    ? theme.colorScheme.onPrimary.withOpacity(0.7)
-                                                    : theme.colorScheme.onSurface.withOpacity(0.5),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  
-                                  if (isFromCurrentUser) const SizedBox(width: 8),
-                                  if (isFromCurrentUser)
-                                    CircleAvatar(
-                                      radius: 16,
-                                      child: Text(
-                                        _currentUserName[0].toUpperCase(),
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                            return MessageBubble(
+                              message: message,
+                              isCurrentUser: isFromCurrentUser,
+                              onReply: () => _replyToMessage(messageData),
+                              onDelete: isFromCurrentUser ? () => _deleteMessage(message.id) : null,
                             );
                           },
                         ),

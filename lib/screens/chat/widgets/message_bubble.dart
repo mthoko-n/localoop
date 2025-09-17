@@ -5,16 +5,126 @@ import 'package:intl/intl.dart';
 class MessageBubble extends StatelessWidget {
   final Message message;
   final bool isCurrentUser;
+  final VoidCallback? onReply;
+  final VoidCallback? onDelete;
 
   const MessageBubble({
     super.key,
     required this.message,
     required this.isCurrentUser,
+    this.onReply,
+    this.onDelete,
   });
 
   String _formatMessageTime(DateTime timestamp) {
     // Format like "12:45 PM" or "Yesterday"
     return DateFormat('h:mm a').format(timestamp);
+  }
+
+  void _showMessageOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              
+              // Title
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Message Options',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              
+              // Reply option
+              ListTile(
+                leading: const Icon(Icons.reply, color: Colors.blue),
+                title: const Text('Reply to Message'),
+                subtitle: const Text('Quote this message in your reply'),
+                onTap: () {
+                  Navigator.pop(context);
+                  onReply?.call();
+                },
+              ),
+              
+              // Delete option (only for current user's messages)
+              if (isCurrentUser && onDelete != null) ...[
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: const Text(
+                    'Delete Message',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  subtitle: const Text('Remove this message permanently'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showDeleteConfirmation(context);
+                  },
+                ),
+              ],
+              
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Delete Message'),
+            ],
+          ),
+          content: const Text(
+            'Are you sure you want to delete this message? This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onDelete?.call();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -63,44 +173,47 @@ class MessageBubble extends StatelessWidget {
                       ),
                     ),
                   ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isCurrentUser
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.surfaceVariant,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isCurrentUser ? 16 : 4),
-                      bottomRight: Radius.circular(isCurrentUser ? 4 : 16),
+                GestureDetector(
+                  onLongPress: () => _showMessageOptions(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        message.content,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: isCurrentUser
-                              ? theme.colorScheme.onPrimary
-                              : theme.colorScheme.onSurfaceVariant,
-                        ),
+                    decoration: BoxDecoration(
+                      color: isCurrentUser
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isCurrentUser ? 16 : 4),
+                        bottomRight: Radius.circular(isCurrentUser ? 4 : 16),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _formatMessageTime(message.timestamp),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: isCurrentUser
-                              ? theme.colorScheme.onPrimary.withOpacity(0.7)
-                              : theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
-                          fontSize: 11,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          message.content,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: isCurrentUser
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        Text(
+                          _formatMessageTime(message.timestamp),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isCurrentUser
+                                ? theme.colorScheme.onPrimary.withOpacity(0.7)
+                                : theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

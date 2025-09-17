@@ -75,6 +75,22 @@ class ChatService {
   }
 
   // -----------------------------
+  // Delete a message
+  // -----------------------------
+  Future<bool> deleteMessage(String messageId) async {
+    try {
+      await apiClient.delete(
+        '/chat/messages/$messageId',
+        headers: await _getHeaders(),
+      );
+      return true;
+    } catch (e) {
+      print('Error deleting message: $e');
+      return false;
+    }
+  }
+
+  // -----------------------------
   // WebSocket connections
   // -----------------------------
   Future<WebSocketChannel?> connectToConversation(String conversationId) async {

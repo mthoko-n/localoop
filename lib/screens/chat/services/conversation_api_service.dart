@@ -73,4 +73,17 @@ class ConversationService {
       return null;
     }
   }
+
+  // -----------------------------
+  // Delete a conversation by ID
+  // -----------------------------
+  Future<bool> deleteConversation(String conversationId) async {
+    try {
+      final data = await api.delete('/chat/conversations/$conversationId');
+      return data != null && (data['message']?.toLowerCase().contains('success') ?? false);
+    } catch (e) {
+      print('Error deleting conversation: $e');
+      return false;
+    }
+  }
 }

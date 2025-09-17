@@ -27,7 +27,8 @@ class AuthService {
         final parts = token.split('.');
         if (parts.length == 3) {
           final payload = json.decode(
-              utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
+            utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))
+          );
           final exp = payload['exp'] as int;
           isValid = DateTime.now().millisecondsSinceEpoch ~/ 1000 < exp;
         }
@@ -67,6 +68,36 @@ class AuthService {
   void notifyAuthFailure() {
     logout(); // This will trigger the stream and update UI
   }
+
+  // ✅ New: Decode JWT and return the user id ("sub" or "user_id")
+// Replace your getCurrentUserId method with this:
+
+Future<String?> getCurrentUserId() async {
+  final token = await _storage.read(key: 'auth_token');
+  print("Token from storage: $token"); // <-- print the raw token
+  if (token == null) return null;
+
+  try {
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+
+    final payload = json.decode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))
+    ) as Map<String, dynamic>;
+
+    //print("Decoded payload: $payload"); // <-- print the decoded payload
+
+    // Use user_id first (the actual MongoDB ObjectId), fallback to sub if needed
+    final userId = payload['user_id']?.toString() ?? payload['sub']?.toString();
+    //print("Current user ID: $userId"); // <-- print the final user ID
+
+    return userId;
+  } catch (e) {
+    print("Error decoding token: $e"); // <-- print any decoding errors
+    return null;
+  }
+}
+
 
   void dispose() {
     _authStateController.close();
