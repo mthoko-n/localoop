@@ -111,25 +111,20 @@ class ApiClient {
   }
 
   Future<JsonMap> _processResponse(http.Response response) async {
-    final statusCode = response.statusCode;
-    final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+  final statusCode = response.statusCode;
+  final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
 
-    if (statusCode == 401) {
-      // Try to refresh token before giving up
-      final refreshed = await AuthService().notifyAuthFailure();
-      if (!refreshed) {
-        throw ApiException(statusCode, 'Authentication failed');
-      }
-      // If refresh was successful, the calling code should retry the request
-      throw ApiException(statusCode, 'Token refreshed - retry needed');
-    }
-
-    if (statusCode < 200 || statusCode >= 300) {
-      throw ApiException(statusCode, body['detail'] ?? 'Unknown error');
-    }
-
-    return body;
+  if (statusCode == 401) {
+    AuthService().logout(); // Just logout on 401
+    throw ApiException(statusCode, 'Authentication failed');
   }
+
+  if (statusCode < 200 || statusCode >= 300) {
+    throw ApiException(statusCode, body['detail'] ?? 'Unknown error');
+  }
+
+  return body;
+}
 }
 
 class ApiException implements Exception {

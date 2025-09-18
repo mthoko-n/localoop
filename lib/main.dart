@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'theme/app_theme.dart';
 import 'screens/navigation/main_navigation.dart';
 import 'services/api_client.dart';
+import 'services/auth_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10,8 +11,17 @@ Future<void> main() async {
   // Load environment variables
   await dotenv.load(fileName: ".env.dev"); // switch to .env.prod in release
 
+  // Get base URL from environment
+  final baseUrl = dotenv.env['BASE_URL'] ?? 'http://localhost:8000';
+  
   // Initialize ApiClient with BASE_URL from .env
-  final apiClient = ApiClient(baseUrl: dotenv.env['BASE_URL'] ?? 'http://localhost:8000');
+  final apiClient = ApiClient(baseUrl: baseUrl);
+
+  // Set the base URL for AuthService so it can make refresh token calls
+  AuthService().setBaseUrl(baseUrl);
+  
+  // Initialize AuthService to check existing auth state
+  await AuthService().initialize();
 
   runApp(LocalLoopApp(apiClient: apiClient));
 }

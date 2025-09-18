@@ -11,12 +11,17 @@ class AuthService {
   final _storage = const FlutterSecureStorage();
   final _authStateController = StreamController<bool>.broadcast();
   
-  // Add your API base URL here
-  final String _baseUrl = 'YOUR_API_BASE_URL'; // Replace with your actual API URL
+  String? _baseUrl; // Dynamic base URL
 
   Stream<bool> get authStateStream => _authStateController.stream;
   bool _isAuthenticated = false;
   bool get isAuthenticated => _isAuthenticated;
+
+  // Set the base URL (called from main.dart)
+  void setBaseUrl(String baseUrl) {
+    _baseUrl = baseUrl;
+    print('AuthService: Base URL set to $_baseUrl');
+  }
 
   Future<void> initialize() async {
     await _checkAuthStatus();
@@ -97,7 +102,7 @@ class AuthService {
   Future<void> logoutAllDevices() async {
     try {
       final token = await _storage.read(key: 'auth_token');
-      if (token != null) {
+      if (token != null && _baseUrl != null) {
         await http.post(
           Uri.parse('$_baseUrl/auth/logout-all'),
           headers: {
@@ -117,7 +122,7 @@ class AuthService {
   Future<void> _revokeRefreshToken() async {
     try {
       final refreshToken = await _storage.read(key: 'refresh_token');
-      if (refreshToken != null) {
+      if (refreshToken != null && _baseUrl != null) {
         await http.post(
           Uri.parse('$_baseUrl/auth/logout'),
           headers: {'Content-Type': 'application/json'},
@@ -148,8 +153,18 @@ class AuthService {
 
   Future<bool> _attemptTokenRefresh() async {
     try {
+      if (_baseUrl == null) {
+        print('AuthService: Base URL not set - cannot refresh token');
+        return false;
+      }
+
       final refreshToken = await _storage.read(key: 'refresh_token');
-      if (refreshToken == null) return false;
+      if (refreshToken == null) {
+        print('AuthService: No refresh token found');
+        return false;
+      }
+
+      print('AuthService: Attempting token refresh to $_baseUrl/auth/refresh');
 
       final response = await http.post(
         Uri.parse('$_baseUrl/auth/refresh'),
@@ -157,18 +172,22 @@ class AuthService {
         body: json.encode({'refresh_token': refreshToken}),
       );
 
+      print('AuthService: Refresh response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final tokenData = json.decode(response.body);
         await _storage.write(key: 'auth_token', value: tokenData['access_token']);
         await _storage.write(key: 'refresh_token', value: tokenData['refresh_token']);
+        print('AuthService: Token refresh successful');
         return true;
       } else {
+        print('AuthService: Token refresh failed - ${response.statusCode}: ${response.body}');
         // Refresh failed, clear tokens
         await _clearTokens();
         return false;
       }
     } catch (e) {
-      print('Token refresh failed: $e');
+      print('AuthService: Token refresh error: $e');
       await _clearTokens();
       return false;
     }
@@ -178,21 +197,41 @@ class AuthService {
     final token = await _storage.read(key: 'auth_token');
     if (token == null) return null;
 
+    // Check if token is expired
     if (!_isTokenValid(token)) {
-      // Try to refresh
+      // Token is expired - try to refresh
       final refreshed = await _attemptTokenRefresh();
       if (refreshed) {
         return await _storage.read(key: 'auth_token');
       } else {
-        return null;
+        return null; // Refresh failed
       }
     }
 
-    return token;
+    // Token is valid - check if close to expiry (within 5 minutes)
+    try {
+      final parts = token.split('.');
+      final payload = json.decode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))
+      );
+      final exp = payload['exp'] as int;
+      final timeToExpiry = exp - (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+      
+      if (timeToExpiry < 300) { // 5 minutes
+        await _attemptTokenRefresh();
+        return await _storage.read(key: 'auth_token');
+      }
+    } catch (_) {
+      // If decoding fails, try refresh anyway
+      await _attemptTokenRefresh();
+      return await _storage.read(key: 'auth_token');
+    }
+
+    return token; // Token is valid and not near expiry
   }
 
   Future<String?> getCurrentUserId() async {
-    final token = await getValidToken(); // This ensures we have a valid token
+    final token = await getValidToken(); // This ensures we get a valid, fresh token
     if (token == null) return null;
 
     try {
