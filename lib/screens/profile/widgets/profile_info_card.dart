@@ -19,30 +19,103 @@ class ProfileInfoCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Profile Avatar
-            CircleAvatar(
-              radius: 40,
-              backgroundColor: theme.colorScheme.primary,
-              child: Text(
-                _getInitials(profile.displayName, profile.lastName),
-                style: textTheme.headlineMedium?.copyWith(
-                  color: theme.colorScheme.onPrimary,
-                  fontWeight: FontWeight.bold,
+            // Profile Avatar with Admin Badge
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: theme.colorScheme.primary,
+                  child: Text(
+                    _getInitials(profile.displayName, profile.lastName),
+                    style: textTheme.headlineMedium?.copyWith(
+                      color: theme.colorScheme.onPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
+                // Admin Badge
+                if (profile.isAdmin)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.amber,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.surface,
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.admin_panel_settings,
+                        size: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             
             const SizedBox(height: 16),
             
-            // Display Name
-            if (profile.displayName.isNotEmpty)
-              Text(
-                '${profile.displayName} ${profile.lastName}',
-                style: textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
+            // Display Name with Admin Badge
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (profile.displayName.isNotEmpty)
+                  Flexible(
+                    child: Text(
+                      '${profile.displayName} ${profile.lastName}',
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                if (profile.isAdmin) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Colors.amber, Colors.orange],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.amber.withOpacity(0.3),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.star,
+                          size: 14,
+                          color: Colors.black87,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'ADMIN',
+                          style: textTheme.labelSmall?.copyWith(
+                            color: Colors.black87,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
             
             const SizedBox(height: 8),
             
