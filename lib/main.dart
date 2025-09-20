@@ -14,7 +14,7 @@ Future<void> main() async {
   // Get base URL from environment
   final baseUrl = dotenv.env['BASE_URL'] ?? 'http://localhost:8000';
   
-  // Initialize ApiClient with BASE_URL from .env
+  
   final apiClient = ApiClient(baseUrl: baseUrl);
 
   // Set the base URL for AuthService so it can make refresh token calls
@@ -39,7 +39,6 @@ class LocalLoopApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.light,
-      // Pass ApiClient down to MainNavigation
       home: MainNavigation(apiClient: apiClient),
     );
   }
