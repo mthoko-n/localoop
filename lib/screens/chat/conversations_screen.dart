@@ -31,10 +31,10 @@ class ConversationsScreen extends StatefulWidget {
 class _ConversationsScreenState extends State<ConversationsScreen> {
   late final ConversationService _conversationService;
   List<Conversation> _conversations = [];
-  List<ChatFilter> _filters = ChatConstants.filters;
+  final List<ChatFilter> _filters = ChatConstants.filters;
   String _selectedFilter = 'all';
   bool _isLoading = true;
-  bool _isCreatingConversation = false;
+  final bool _isCreatingConversation = false;
   String? _currentUserId;
 
   @override

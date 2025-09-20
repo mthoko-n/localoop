@@ -32,7 +32,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   List<Map<String, dynamic>> _messages = [];
-  Set<String> _typingUsers = <String>{};
+  final Set<String> _typingUsers = <String>{};
   WebSocketChannel? _webSocketChannel;
   Timer? _typingTimer;
   String? _replyToMessageId;
@@ -73,7 +73,7 @@ class _ChatScreenState extends State<ChatScreen> {
         
         // Get user profile to fetch display name
         final profile = await _profileService.getUserProfile();
-        if (profile != null && mounted) {
+        if (mounted) {
           final displayName = profile.displayName.isNotEmpty 
               ? profile.displayName 
               : 'You';
@@ -403,7 +403,7 @@ class _ChatScreenState extends State<ChatScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceVariant,
+              color: theme.colorScheme.surfaceContainerHighest,
               border: Border(
                 bottom: BorderSide(
                   color: theme.colorScheme.outline.withOpacity(0.2),
@@ -496,7 +496,7 @@ class _ChatScreenState extends State<ChatScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceVariant,
+                color: theme.colorScheme.surfaceContainerHighest,
                 border: Border(
                   top: BorderSide(color: theme.colorScheme.outline.withOpacity(0.2)),
                 ),
